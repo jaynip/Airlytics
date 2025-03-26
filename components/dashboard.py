@@ -171,7 +171,7 @@ def render_dashboard(df, ai_recommendations=None):
                         if ts_param:
                             ts_fig = plot_time_series(df, parameters=[ts_param], rolling_window=5)
                             if ts_fig:
-                                st.plotly_chart(ts_fig, use_container_width=True)
+                                st.plotly_chart(ts_fig, use_container_width=True, key="overview_ts_fig_1")
                             else:
                                 st.error(f"Could not create time series chart for {ts_param}")
                         else:
@@ -184,7 +184,7 @@ def render_dashboard(df, ai_recommendations=None):
                     if 'AQI' in df.columns:
                         aqi_dist_fig = create_aqi_distribution_chart(df)
                         if aqi_dist_fig:
-                            st.plotly_chart(aqi_dist_fig, use_container_width=True)
+                            st.plotly_chart(aqi_dist_fig, use_container_width=True, key="aqi_dist_fig")
                         else:
                             st.error("Could not create AQI distribution chart")
                     else:
