@@ -506,9 +506,41 @@ def final_data_processing(df):
     pandas.DataFrame
         Final processed DataFrame
     """
+    # Define device coordinates mapping (latitude, longitude)
+    device_coordinates = {
+        523005: (23.02909505, 72.49078965),
+        523011: (23.0309101, 72.5088321),
+        523047: (23.0692036, 72.5653925),
+        523082: (23.0850114, 72.5751516),
+        523093: (23.096915, 72.527362),
+        524037: (23.04836488, 72.68863108),
+        524046: (23.0428964, 72.4749039),
+        524049: (23.0777287, 72.5056656),
+        524062: (23.12348122, 72.53853052),
+        524089: (23.02815923, 72.50001528),
+        524091: (23.0087287, 72.4551301),
+    }
+    
     # Sort by datetime
     if 'Datetime' in df.columns:
         df = df.sort_values('Datetime')
+    
+    # Add Latitude and Longitude based on Device_ID
+    if 'Device_ID' in df.columns and 'Latitude' not in df.columns:
+        # Create empty Latitude and Longitude columns
+        df['Latitude'] = None
+        df['Longitude'] = None
+        
+        # Fill coordinates based on device ID
+        for device_id, (lat, lon) in device_coordinates.items():
+            mask = df['Device_ID'] == device_id
+            if mask.any():
+                df.loc[mask, 'Latitude'] = lat
+                df.loc[mask, 'Longitude'] = lon
+        
+        # Convert to numeric
+        df['Latitude'] = pd.to_numeric(df['Latitude'], errors='coerce')
+        df['Longitude'] = pd.to_numeric(df['Longitude'], errors='coerce')
     
     # Calculate AQI if needed pollutant columns exist and AQI doesn't
     if 'AQI' not in df.columns:

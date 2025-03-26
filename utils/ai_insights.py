@@ -8,6 +8,7 @@ from sklearn.cluster import KMeans
 from sklearn.ensemble import IsolationForest
 from sklearn.preprocessing import StandardScaler
 import json
+import google.generativeai as genai
 
 # Set up logging
 logger = logging.getLogger(__name__)
@@ -906,6 +907,62 @@ def assess_health_impact(df):
                 'avg_aqi': float(avg_aqi),
                 'max_aqi': float(max_aqi)
             }
+            
+            # Use Gemini API to generate more detailed health insights
+            try:
+                # Initialize the Gemini API with the provided key
+                import os
+                api_key = os.environ.get("GOOGLE_API_KEY")
+                if api_key:
+                    genai.configure(api_key=api_key)
+                    
+                    # Prepare data summary for Gemini
+                    pollutant_data = {}
+                    for col in ['PM2.5', 'PM10', 'NO2', 'O3', 'CO', 'SO2']:
+                        if col in df.columns:
+                            pollutant_data[col] = {
+                                'avg': float(df[col].mean()),
+                                'max': float(df[col].max())
+                            }
+                    
+                    # Create the prompt for Gemini
+                    prompt = f"""
+                    Analyze the following air quality data and provide specific health impact insights:
+                    
+                    Average AQI: {avg_aqi:.1f} (Risk Level: {risk_level})
+                    Maximum AQI: {max_aqi:.1f}
+                    
+                    Pollutant Averages:
+                    {json.dumps(pollutant_data, indent=2)}
+                    
+                    Please provide:
+                    1. Potential health impacts for general population (2-3 sentences)
+                    2. Specific impacts for sensitive groups (elderly, children, respiratory conditions) (2-3 sentences)
+                    3. Recommended precautions based on these levels (3-4 specific bullet points)
+                    4. Long-term health concerns if these levels persist (1-2 sentences)
+                    
+                    Keep the response concise and focused on actionable information.
+                    Format the response with clear section headings.
+                    """
+                    
+                    # Generate content with Gemini
+                    model = genai.GenerativeModel('gemini-pro')
+                    response = model.generate_content(prompt)
+                    
+                    # Process and structure the response
+                    if response and hasattr(response, 'text'):
+                        # Get the response text
+                        gemini_insights = response.text.strip()
+                        
+                        # Add Gemini-generated insights
+                        health_impact['gemini_insights'] = gemini_insights
+                        logger.info("Successfully generated AI health insights with Gemini")
+                    else:
+                        logger.warning("Gemini API returned an empty or invalid response")
+                else:
+                    logger.warning("No Google API key available for Gemini integration")
+            except Exception as e:
+                logger.error(f"Error generating Gemini health insights: {str(e)}")
             
         # Specific pollutant health impacts
         pollutant_impacts = {}
