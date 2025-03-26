@@ -619,7 +619,7 @@ def render_dashboard(df, ai_recommendations=None):
                             risk_color = risk_colors.get(risk.get('level'), 'gray')
                             
                             st.markdown(
-                                f"<div style='background-color: rgba({','.join(map(str, px.colors.name_to_rgb(risk_color)))}, 0.15); "
+                                f"<div style='background-color: rgba({risk_color=='green' and '0,128,0' or risk_color=='orange' and '255,165,0' or risk_color=='red' and '255,0,0' or '128,128,128'}, 0.15); "
                                 f"border-left: 4px solid {risk_color}; padding: 15px; margin-bottom: 15px; border-radius: 5px;'>"
                                 f"<h5 style='margin-top: 0;'>Overall Health Risk: {risk.get('level')}</h5>"
                                 f"<p>{risk.get('description', '')}</p>"

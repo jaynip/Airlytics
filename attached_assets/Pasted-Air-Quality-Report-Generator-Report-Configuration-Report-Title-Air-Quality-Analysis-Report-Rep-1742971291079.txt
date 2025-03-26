@@ -1,0 +1,117 @@
+Air Quality Report Generator
+Report Configuration
+Report Title
+
+Air Quality Analysis Report
+Report Description
+
+This report provides an analysis of air quality data collected from monitoring stations.
+Author Name (optional)
+
+Organization (optional)
+
+Report Sections
+
+
+
+
+
+Visualizations
+
+
+
+
+Report Preview
+Air Quality Analysis Report
+Date: 2025-03-26
+
+This report provides an analysis of air quality data collected from monitoring stations.
+
+Executive Summary
+This report analyzes air quality data collected over 8 days from 2025-02-06 to 2025-02-13.
+
+Data was collected from 6 monitoring devices.
+
+The average Air Quality Index (AQI) was 155.4, categorized as Unhealthy. This indicates air quality that is concerning, with potential health effects for the general population.
+
+The maximum recorded AQI was 1793.8.
+
+PM10 was the most problematic pollutant, exceeding recommended limits 60.4% of the time.
+
+PM2.5 also showed elevated levels, exceeding limits 40.7% of the time.
+
+Key Insights:
+
+Data spans from 2025-02-06 to 2025-02-13
+
+Data completeness: 100.0% (8 out of 8 days)
+
+Data collected from 11 devices
+
+Priority Recommendations:
+
+PM2.5 levels are increasing significantly. Consider implementing emission reduction strategies.
+
+PM10 levels are increasing significantly. Consider implementing emission reduction strategies.
+
+155.4
+Average AQI
+
+8
+Days Analyzed
+
+12,751
+Data Points
+
+Overview
+Trend Analysis
+Parameter Correlations
+Key Correlation Findings:
+PM2.5 and PM10 show a strong positive correlation (0.90), suggesting a common source
+Forecasts
+Pollutant Analysis
+PM2.5
+Average
+
+37.00 μg/m³
+Maximum
+
+427.09 μg/m³
+Minimum
+
+2.88 μg/m³
+Threshold Exceedance
+
+40.7%
+Health Effects
+Increased aggravation of heart or lung disease and premature mortality in sensitive groups
+PM10
+Average
+
+82.57 μg/m³
+Maximum
+
+1354.92 μg/m³
+Minimum
+
+7.40 μg/m³
+Threshold Exceedance
+
+60.4%
+Health Effects
+Increased respiratory symptoms and aggravation of lung diseases
+Recommendations
+High Priority Actions
+PM2.5 levels are increasing significantly. Consider implementing emission reduction strategies.
+PM10 levels are increasing significantly. Consider implementing emission reduction strategies.
+Average PM10 levels (113.0 µg/m³) exceed recommended limits. Consider dust suppression measures.
+AQI levels are increasing significantly. Consider implementing emission reduction strategies.
+Detected extreme PM2.5 spikes. Investigate potential emission sources or sensor malfunctions.
+Detected extreme PM10 spikes. Investigate potential emission sources or sensor malfunctions.
+Detected extreme AQI spikes. Investigate potential emission sources or sensor malfunctions.
+Location monitored by device 524091 shows the highest pollution levels (AQI: 313.0). Prioritize interventions in this area.
+Medium Priority Actions
+Average PM2.5 levels (48.4 µg/m³) exceed healthy limits. Consider air filtration and reduced outdoor activities.
+PM2.5 levels peak around 9 PM. Consider adjusting outdoor activities and ventilation schedules accordingly.
+PM10 levels peak around 8 PM. Consider adjusting outdoor activities and ventilation schedules accordingly.
+AQI levels peak around 9 PM. Consider adjusting outdoor activities and ventilation schedules accordingly.
