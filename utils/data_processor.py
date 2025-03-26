@@ -2,6 +2,8 @@ import pandas as pd
 import numpy as np
 import logging
 import os
+import re
+import geohash2
 from datetime import datetime, timedelta
 import random
 from io import BytesIO
@@ -27,84 +29,144 @@ def upload_and_process_data(uploaded_files):
         logger.warning("No files were uploaded")
         return None
     
-    all_dataframes = []
+    all_data = []
+    all_columns = set()
+    
+    # Define device coordinates mapping (latitude, longitude)
+    device_coordinates = {
+        523005: (23.02909505, 72.49078965),
+        523011: (23.0309101, 72.5088321),
+        523047: (23.0692036, 72.5653925),
+        523082: (23.0850114, 72.5751516),
+        523093: (23.096915, 72.527362),
+        524037: (23.04836488, 72.68863108),
+        524046: (23.0428964, 72.4749039),
+        524049: (23.0777287, 72.5056656),
+        524062: (23.12348122, 72.53853052),
+        524089: (23.02815923, 72.50001528),
+        524091: (23.0087287, 72.4551301),
+    }
+    device_geohash = {device_id: geohash2.encode(lat, lon, precision=7) for device_id, (lat, lon) in device_coordinates.items()}
     
     for file in uploaded_files:
         try:
-            # Read file content into a BytesIO object
+            file_name = file.name
             file_content = BytesIO(file.getvalue())
             
-            # Determine file type and read accordingly
-            file_name = file.name.lower()
-            
-            if file_name.endswith('.csv'):
-                # Try different encodings and delimiters for CSV files
-                try:
-                    df = pd.read_csv(file_content, encoding='utf-8')
-                except UnicodeDecodeError:
-                    try:
-                        # Reset pointer to the beginning of the file
-                        file_content.seek(0)
-                        df = pd.read_csv(file_content, encoding='latin1')
-                    except:
-                        # Reset pointer and try with different delimiter
-                        file_content.seek(0)
-                        df = pd.read_csv(file_content, encoding='utf-8', delimiter=';')
-                        
-            elif file_name.endswith(('.xls', '.xlsx')):
-                df = pd.read_excel(file_content)
+            # Load file based on extension
+            file_extension = file_name.split('.')[-1].lower()
+            if file_extension == 'csv':
+                df = pd.read_csv(file_content, encoding='utf-8-sig', delimiter=',', dtype={'To Date': str})
+            elif file_extension in ['xls', 'xlsx']:
+                df = pd.read_excel(file_content, dtype={'To Date': str})
             else:
-                logger.error(f"Unsupported file format: {file_name}")
+                logger.warning(f"⚠️ Unsupported file format: {file_name}")
                 continue
-                
-            # Clean up column names - remove spaces, special chars, standardize
-            df.columns = [clean_column_name(col) for col in df.columns]
-            
-            # Ensure DateTime column exists and is properly formatted
-            df = standardize_datetime_column(df)
-            
-            # Ensure Device_ID column exists
-            if 'Device_ID' not in df.columns and 'device_id' not in df.columns:
-                # Try to find a column that might contain device IDs
-                device_col = next((col for col in df.columns if 
-                                  any(kw in col.lower() for kw in ['device', 'id', 'sensor', 'station'])), None)
-                
-                if device_col:
-                    df = df.rename(columns={device_col: 'Device_ID'})
+
+            df.columns = df.columns.str.strip()
+            logger.info(f"Loaded columns for {file_name}: {list(df.columns)}")
+
+            # Datetime conversion
+            if "To Date" in df.columns:
+                df.rename(columns={"To Date": "Datetime"}, inplace=True)
+                df["Datetime"] = pd.to_datetime(df["Datetime"], format="%d-%m-%Y %H:%M", errors="coerce", dayfirst=True)
+                if df["Datetime"].isna().any():
+                    logger.warning(f"⚠️ Some Datetime values invalid in {file_name}; attempting fallback parsing.")
+                    df["Datetime"] = pd.to_datetime(df["Datetime"], dayfirst=True, errors="coerce")
+                df["Time"] = df["Datetime"].dt.strftime('%H:%M:%S')
+                if df["Datetime"].isna().all():
+                    logger.error(f"❌ All Datetime values are NaT in {file_name}. Skipping.")
+                    continue
+                logger.info(f"✅ Datetime column converted successfully in {file_name}")
+            else:
+                logger.error(f"❌ 'To Date' column not found in {file_name}. Skipping.")
+                continue
+
+            # Rename columns
+            column_mapping = {
+                'PM₂.₅ (µg/m³)': 'PM2.5', 'PM₁₀ (µg/m³)': 'PM10', 'PM₁ (µg/m³ )': 'PM1',
+                'PM₁₀₀ (µg/m³ )': 'PM100', 'R. Humidity (%)': 'Humidity',
+                'Temperature (°C)': 'Temperature', 'wind direction (degree)': 'Wind_Direction',
+                'wind speed (m/s)': 'Wind_Speed'
+            }
+            df.rename(columns=column_mapping, inplace=True)
+            all_columns.update(df.columns)
+            logger.info(f"Columns after renaming in {file_name}: {list(df.columns)}")
+
+            # Extract Device_ID from filename (e.g., AQ0523005.csv -> 523005)
+            device_id_match = re.search(r'AQ0(\d{6})', file_name)
+            if not device_id_match:
+                # Try another pattern or fallback to filename as device ID
+                logger.warning(f"⚠️ Could not extract Device_ID from {file_name}. Using filename as Device_ID.")
+                df['Device_ID'] = os.path.splitext(file_name)[0]
+            else:
+                device_id = int(device_id_match.group(1))  # Extract the 6-digit number after 'AQ0'
+                df['Device_ID'] = device_id
+                # Add geohash if device coordinates are known
+                if device_id in device_coordinates:
+                    df['Geohash'] = device_geohash[device_id]
+                    logger.info(f"✅ Geohash assigned in {file_name}: {df['Geohash'].iloc[0]}")
                 else:
-                    # If no device column found, use filename as device id
-                    device_id = os.path.splitext(file.name)[0]
-                    df['Device_ID'] = device_id
-            elif 'device_id' in df.columns:
-                df = df.rename(columns={'device_id': 'Device_ID'})
-                
-            # Standardize pollutant columns if they exist
-            pollutant_columns = find_and_standardize_pollutant_columns(df)
-            
-            # Handle missing values
-            df = handle_missing_values(df)
-            
-            # Remove duplicate records
-            df = df.drop_duplicates()
-            
-            all_dataframes.append(df)
-            logger.info(f"Successfully processed file: {file.name}")
+                    logger.warning(f"⚠️ Device_ID {device_id} from {file_name} not in coordinates mapping. Geohash will be NaN.")
+                    df['Geohash'] = pd.NA
+
+            # Convert objects to numeric
+            df.replace('-', pd.NA, inplace=True)
+            for col in df.select_dtypes(include=['object']).columns:
+                if col not in ['Time', 'Device_ID', 'Geohash']:
+                    df[col] = pd.to_numeric(df[col], errors='coerce')
+
+            # Validate key columns
+            if 'PM2.5' in df.columns:
+                invalid_pm25 = df[(df['PM2.5'] < 0) | (df['PM2.5'] > 500)].index
+                df.loc[invalid_pm25, 'PM2.5'] = pd.NA
+                if len(invalid_pm25) > 0:
+                    logger.warning(f"⚠️ {len(invalid_pm25)} rows with invalid PM2.5 values in {file_name}; set to NaN.")
+            if 'Wind_Direction' in df.columns:
+                invalid_wind = df[(df['Wind_Direction'] < 0) | (df['Wind_Direction'] > 360)].index
+                df.loc[invalid_wind, 'Wind_Direction'] = pd.NA
+                if len(invalid_wind) > 0:
+                    logger.warning(f"⚠️ {len(invalid_wind)} rows with invalid Wind_Direction values in {file_name}; set to NaN.")
+
+            # Fill missing values for continuous variables
+            for col in ['Temperature', 'Humidity', 'Wind_Speed']:
+                if col in df.columns and df[col].isna().any():
+                    df[col] = df[col].ffill().bfill()
+
+            # Fill calibration factors
+            cf_columns = ['P1_CF', 'P2_CF', 'P3_CF', 'P4_CF', 'HUM_CF', 'TEMP_CF']
+            for col in cf_columns:
+                if col in df.columns:
+                    df[col] = df[col].fillna(100.0)
+
+            all_data.append(df)
+            logger.info(f"✅ Successfully processed file: {file_name}")
             
         except Exception as e:
-            logger.error(f"Error processing file {file.name}: {str(e)}")
+            logger.error(f"❌ Error processing file {file.name}: {str(e)}")
             continue
     
-    if not all_dataframes:
-        logger.error("No dataframes were successfully created")
-        return None
+    if all_data:
+        # Ensure consistent columns across all DataFrames
+        for i in range(len(all_data)):
+            missing_cols = all_columns - set(all_data[i].columns)
+            for col in missing_cols:
+                all_data[i][col] = pd.NA
+        
+        # Combine all dataframes
+        combined_df = pd.concat(all_data, ignore_index=True)
+        
+        # Sort by device ID and datetime
+        if 'Datetime' in combined_df.columns and 'Device_ID' in combined_df.columns:
+            combined_df.sort_values(by=['Device_ID', 'Datetime'], ascending=[True, True], inplace=True)
+        
+        # Final processing
+        combined_df = final_data_processing(combined_df)
+        logger.info("✅ Data merged successfully.")
+        return combined_df
     
-    # Combine all dataframes
-    combined_df = pd.concat(all_dataframes, ignore_index=True)
-    
-    # Final processing
-    combined_df = final_data_processing(combined_df)
-    
-    return combined_df
+    logger.error("❌ No valid data processed.")
+    return None
 
 def load_sample_data():
     """
