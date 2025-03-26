@@ -5,6 +5,8 @@ import plotly.express as px
 import plotly.graph_objects as go
 from datetime import datetime, timedelta
 import logging
+import random
+import string
 
 # Import utility functions
 from utils.visualization import (
@@ -17,6 +19,31 @@ from utils.visualization import (
     create_forecast_chart,
     create_pollutant_box_plot
 )
+
+# Helper function to avoid duplicate chart keys
+def safe_plotly_chart(fig, container_width=True, key_prefix="chart"):
+    """
+    A wrapper around st.plotly_chart that ensures unique keys for each chart.
+    
+    Parameters:
+    -----------
+    fig : plotly.graph_objects.Figure
+        The figure to display
+    container_width : bool
+        Whether to use container width
+    key_prefix : str
+        Prefix for the key to ensure uniqueness
+        
+    Returns:
+    --------
+    None
+    """
+    # Generate a random string to append to the key
+    random_str = ''.join(random.choices(string.ascii_lowercase + string.digits, k=6))
+    unique_key = f"{key_prefix}_{random_str}"
+    
+    # Display the chart with the unique key
+    st.plotly_chart(fig, use_container_width=container_width, key=unique_key)
 
 # Set up logging
 logger = logging.getLogger(__name__)
@@ -490,6 +517,55 @@ def render_dashboard(df, ai_recommendations=None):
                                             st.error(f"Could not create weekly pattern chart for {pollutant}")
                 else:
                     st.info("No pollutant data available for detailed analysis")
+        
+        # Add device comparison table if multiple devices exist
+        if 'Device_ID' in df.columns and df['Device_ID'].nunique() > 1:
+            st.subheader("Device Comparison", divider="green")
+            
+            # Create a dataframe to compare devices
+            device_comparison = pd.DataFrame()
+            pollutant_cols = [col for col in df.columns if col in ['PM2.5', 'PM10', 'NO2', 'O3', 'CO', 'SO2', 'AQI']]
+            
+            if pollutant_cols:
+                # Group by device and calculate statistics
+                device_stats = df.groupby('Device_ID')[pollutant_cols].agg(['mean', 'max', 'std']).reset_index()
+                
+                # Create a more readable comparison table
+                for device_id in df['Device_ID'].unique():
+                    device_data = df[df['Device_ID'] == device_id]
+                    device_row = {'Device ID': device_id}
+                    
+                    # Add key metrics for each pollutant
+                    for pollutant in pollutant_cols:
+                        if pollutant in device_data.columns:
+                            device_row[f"{pollutant} (Avg)"] = device_data[pollutant].mean()
+                            device_row[f"{pollutant} (Max)"] = device_data[pollutant].max()
+                    
+                    # Add rows to comparison dataframe
+                    device_comparison = pd.concat([device_comparison, pd.DataFrame([device_row])], ignore_index=True)
+                
+                # Format and display the comparison table
+                st.dataframe(
+                    device_comparison, 
+                    use_container_width=True,
+                    hide_index=True,
+                    column_config={
+                        "Device ID": st.column_config.TextColumn("Device ID", width="medium"),
+                        **{f"{p} (Avg)": st.column_config.NumberColumn(f"{p} (Avg)", format="%.1f") 
+                          for p in pollutant_cols if f"{p} (Avg)" in device_comparison.columns},
+                        **{f"{p} (Max)": st.column_config.NumberColumn(f"{p} (Max)", format="%.1f", help=f"Maximum {p} value") 
+                          for p in pollutant_cols if f"{p} (Max)" in device_comparison.columns}
+                    }
+                )
+                
+                # Add a download button for the comparison table
+                st.download_button(
+                    "Download Comparison Table",
+                    data=device_comparison.to_csv(index=False).encode('utf-8'),
+                    file_name=f"device_comparison_{datetime.now().strftime('%Y%m%d')}.csv",
+                    mime="text/csv",
+                    help="Download the device comparison data as a CSV file"
+                )
         
         # TAB 4: AI Insights
         with tab4:
