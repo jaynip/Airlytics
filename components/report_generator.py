@@ -437,7 +437,9 @@ def render_report_generator(df, ai_recommendations=None):
                             
                             # Create download link
                             b64_html = base64.b64encode(html_content.encode()).decode()
-                            href = f'<a href="data:text/html;base64,{b64_html}" download="{report_title.replace(" ", "_")}.html">Download HTML Report</a>'
+                            # Process the filename safely outside the f-string
+                            safe_filename = report_title.replace(" ", "_")
+                            href = f'<a href="data:text/html;base64,{b64_html}" download="{safe_filename}.html">Download HTML Report</a>'
                             st.markdown(href, unsafe_allow_html=True)
                         else:
                             st.info("PDF export is being implemented. Please use HTML export for now.")
@@ -752,10 +754,13 @@ def generate_html_report(df, ai_recommendations, title, description, author, org
         # Executive Summary
         if include_summary:
             summary_text = generate_executive_summary(df, ai_recommendations)
+            # Process summary text outside the f-string
+            processed_summary = summary_text.replace("\n\n", "<br><br>")
+            
             html_content += f"""
             <h2>Executive Summary</h2>
             <div class="executive-summary">
-                {summary_text.replace("\n\n", "<br><br>")}
+                {processed_summary}
             </div>
             
             <div class="metric-row">
