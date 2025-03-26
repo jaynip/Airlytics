@@ -465,8 +465,17 @@ if st.session_state.data is None:
         """)
     
     with col2:
-        # Embed the banner with animated icons
-        st.markdown(get_banner_html(), unsafe_allow_html=True)
+        # Create a cleaner banner with simple SVG icons instead of HTML divs
+        st.markdown("""
+        <div style="text-align: center; padding: 20px; background: linear-gradient(120deg, rgba(75, 176, 81, 0.1) 0%, rgba(255, 255, 255, 0.8) 100%); border-radius: 10px;">
+            <div style="display: flex; justify-content: center; align-items: center; gap: 20px;">
+                <img src="https://img.icons8.com/ios/50/4bb051/leaf.png" alt="Leaf" width="32">
+                <img src="https://img.icons8.com/ios/50/4bb051/cloud.png" alt="Cloud" width="32">
+                <img src="https://img.icons8.com/ios/50/4bb051/sun.png" alt="Sun" width="32">
+                <img src="https://img.icons8.com/ios/50/4bb051/temperature.png" alt="Temperature" width="32">
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
     
     # Feature rows with enhanced styling
     st.subheader("Key Features", divider="green")
@@ -474,27 +483,27 @@ if st.session_state.data is None:
     feature_row1 = st.columns(3)
     
     with feature_row1[0]:
-        st.markdown(f"""
+        st.markdown("""
         <div class="metric-card">
-            {LEAF_ICON}
+            <img src="https://img.icons8.com/ios/50/4bb051/leaf.png" alt="Leaf" width="32">
             <h3>Data Processing</h3>
             <p>Advanced data cleaning and transformation capabilities for accurate analysis</p>
         </div>
         """, unsafe_allow_html=True)
     
     with feature_row1[1]:
-        st.markdown(f"""
+        st.markdown("""
         <div class="metric-card">
-            {CLOUD_ICON}
+            <img src="https://img.icons8.com/ios/50/4bb051/cloud.png" alt="Cloud" width="32">
             <h3>Interactive Dashboards</h3>
             <p>Dynamic visualizations with time-series analysis, correlations, and patterns</p>
         </div>
         """, unsafe_allow_html=True)
     
     with feature_row1[2]:
-        st.markdown(f"""
+        st.markdown("""
         <div class="metric-card">
-            {SUN_ICON}
+            <img src="https://img.icons8.com/ios/50/4bb051/sun.png" alt="Sun" width="32">
             <h3>AI-Powered Insights</h3>
             <p>Advanced analytics with predictive modeling and anomaly detection</p>
         </div>
@@ -508,7 +517,7 @@ if st.session_state.data is None:
     feature_row2 = st.columns(3)
     
     with feature_row2[0]:
-        st.markdown(f"""
+        st.markdown("""
         <div class="chart-container">
             <h4>Data Analysis</h4>
             <ul>
@@ -521,7 +530,7 @@ if st.session_state.data is None:
         """, unsafe_allow_html=True)
     
     with feature_row2[1]:
-        st.markdown(f"""
+        st.markdown("""
         <div class="chart-container">
             <h4>AI Insights</h4>
             <ul>
@@ -534,7 +543,7 @@ if st.session_state.data is None:
         """, unsafe_allow_html=True)
     
     with feature_row2[2]:
-        st.markdown(f"""
+        st.markdown("""
         <div class="chart-container">
             <h4>Geospatial View</h4>
             <ul>
