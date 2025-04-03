@@ -96,13 +96,11 @@ def upload_and_process_data(uploaded_files):
             # Extract Device_ID from filename (e.g., AQ0523005.csv -> 523005)
             device_id_match = re.search(r'AQ0(\d{6})', file_name)
             if not device_id_match:
-                # Try another pattern or fallback to filename as device ID
                 logger.warning(f"⚠️ Could not extract Device_ID from {file_name}. Using filename as Device_ID.")
                 df['Device_ID'] = os.path.splitext(file_name)[0]
             else:
-                device_id = int(device_id_match.group(1))  # Extract the 6-digit number after 'AQ0'
+                device_id = int(device_id_match.group(1))
                 df['Device_ID'] = device_id
-                # Add geohash if device coordinates are known
                 if device_id in device_coordinates:
                     df['Geohash'] = device_geohash[device_id]
                     logger.info(f"✅ Geohash assigned in {file_name}: {df['Geohash'].iloc[0]}")
@@ -160,6 +158,12 @@ def upload_and_process_data(uploaded_files):
         if 'Datetime' in combined_df.columns and 'Device_ID' in combined_df.columns:
             combined_df.sort_values(by=['Device_ID', 'Datetime'], ascending=[True, True], inplace=True)
         
+        # Check for devices without coordinates
+        if 'Device_ID' in combined_df.columns:
+            unknown_devices = set(combined_df['Device_ID'].unique()) - set(device_coordinates.keys())
+            if unknown_devices:
+                logger.warning(f"⚠️ Unknown devices without coordinates: {unknown_devices}")
+        
         # Final processing
         combined_df = final_data_processing(combined_df)
         logger.info("✅ Data merged successfully.")
@@ -178,35 +182,41 @@ def load_sample_data():
         Sample dataset with air quality measurements
     """
     try:
-        # Create a synthetic dataset for demonstration
+        # Define device coordinates mapping (latitude, longitude)
+        device_coordinates = {
+            523005: (23.02909505, 72.49078965),
+            523011: (23.0309101, 72.5088321),
+            523047: (23.0692036, 72.5653925),
+            523082: (23.0850114, 72.5751516),
+            523093: (23.096915, 72.527362),
+            524037: (23.04836488, 72.68863108),
+            524046: (23.0428964, 72.4749039),
+            524049: (23.0777287, 72.5056656),
+            524062: (23.12348122, 72.53853052),
+            524089: (23.02815923, 72.50001528),
+            524091: (23.0087287, 72.4551301),
+        }
+        
         # Base date for the time series
         base_date = datetime.now() - timedelta(days=30)
-        
-        # Number of days and hours per day for the sample data
         num_days = 30
         hours_per_day = 24
         
         # Create a time series
         dates = [base_date + timedelta(days=d, hours=h) 
-                for d in range(num_days) 
-                for h in range(hours_per_day)]
+                 for d in range(num_days) 
+                 for h in range(hours_per_day)]
         
-        # Create multiple devices
-        device_ids = ['OIZOM001', 'OIZOM002', 'OIZOM003', 'OIZOM004']
+        # Use device IDs from coordinates
+        device_ids = list(device_coordinates.keys())
         
-        # Create location data (latitude/longitude)
-        locations = {
-            'OIZOM001': (19.0760, 72.8777),  # Mumbai
-            'OIZOM002': (28.7041, 77.1025),  # Delhi
-            'OIZOM003': (12.9716, 77.5946),  # Bangalore
-            'OIZOM004': (22.5726, 88.3639)   # Kolkata
-        }
-        
-        # Create the dataset
         rows = []
         
         for date in dates:
             for device_id in device_ids:
+                # Get fixed coordinates
+                lat, lon = device_coordinates[device_id]
+                
                 # Base values for each pollutant
                 pm25_base = 35.0  # μg/m³
                 pm10_base = 65.0  # μg/m³
@@ -217,56 +227,46 @@ def load_sample_data():
                 
                 # Add time-of-day variation
                 hour = date.hour
-                # More pollution during morning and evening rush hours
-                if 7 <= hour <= 10 or 17 <= hour <= 20:
+                if 7 <= hour <= 10 or 17 <= hour <= 20:  # Rush hours
                     time_factor = 1.5
-                # Less pollution at night
-                elif 0 <= hour <= 5:
+                elif 0 <= hour <= 5:  # Night
                     time_factor = 0.7
                 else:
                     time_factor = 1.0
                 
-                # Add day-of-week variation (weekends have less pollution)
+                # Add day-of-week variation
                 weekday = date.weekday()
-                day_factor = 0.8 if weekday >= 5 else 1.0  # Weekend vs weekday
+                day_factor = 0.8 if weekday >= 5 else 1.0
                 
                 # Add device-specific variation
-                if device_id == 'OIZOM001':  # Mumbai - moderate pollution
+                if device_id in [523005, 524046]:  # Moderate pollution
                     device_factor = 1.2
-                elif device_id == 'OIZOM002':  # Delhi - high pollution
+                elif device_id == 523011:  # High pollution
                     device_factor = 1.8
-                elif device_id == 'OIZOM003':  # Bangalore - low pollution
+                elif device_id == 523047:  # Low pollution
                     device_factor = 0.7
-                else:  # Kolkata - variable pollution
+                else:  # Variable pollution
                     device_factor = 1.3
                 
                 # Add random noise
                 noise = lambda: np.random.normal(1, 0.15)
                 
-                # Calculate final values with variations
+                # Calculate final values
                 pm25 = pm25_base * time_factor * day_factor * device_factor * noise()
                 pm10 = pm10_base * time_factor * day_factor * device_factor * noise()
                 no2 = no2_base * time_factor * day_factor * device_factor * noise()
                 co = co_base * time_factor * day_factor * device_factor * noise()
-                o3 = o3_base * (2 - time_factor) * day_factor * device_factor * noise()  # O3 tends to be higher in midday
+                o3 = o3_base * (2 - time_factor) * day_factor * device_factor * noise()
                 so2 = so2_base * time_factor * day_factor * device_factor * noise()
                 
-                # Get location
-                lat, lon = locations[device_id]
+                # Add environmental data
+                temperature = 25 + 10 * np.sin(np.pi * hour / 12) * noise() * 0.3
+                humidity = 60 + 20 * np.cos(np.pi * hour / 12) * noise() * 0.3
+                pressure = 1013 + np.random.normal(0, 2)
                 
-                # Add some randomness to location (as if the device is moving slightly)
-                lat += np.random.normal(0, 0.002)
-                lon += np.random.normal(0, 0.002)
-                
-                # Add temperature, humidity, and pressure data
-                temperature = 25 + 10 * np.sin(np.pi * hour / 12) * noise() * 0.3  # Daily temperature cycle
-                humidity = 60 + 20 * np.cos(np.pi * hour / 12) * noise() * 0.3  # Daily humidity cycle
-                pressure = 1013 + np.random.normal(0, 2)  # Atmospheric pressure in hPa
-                
-                # Calculate air quality index (simplified)
+                # Calculate AQI
                 aqi = calculate_aqi(pm25, pm10, no2, o3, co, so2)
                 
-                # Add the data point
                 row = {
                     'Datetime': date,
                     'Device_ID': device_id,
@@ -283,20 +283,15 @@ def load_sample_data():
                     'Pressure': round(pressure, 1),
                     'AQI': round(aqi, 0)
                 }
-                
                 rows.append(row)
         
-        # Create the DataFrame
         df = pd.DataFrame(rows)
-        
-        # Ensure datetime column is properly formatted
         df['Datetime'] = pd.to_datetime(df['Datetime'])
-        
-        logger.info("Sample data loaded successfully")
+        logger.info("✅ Sample data loaded successfully")
         return df
-        
+    
     except Exception as e:
-        logger.error(f"Error creating sample data: {str(e)}")
+        logger.error(f"❌ Error creating sample data: {str(e)}")
         return None
 
 def clean_column_name(col_name):
@@ -313,58 +308,28 @@ def clean_column_name(col_name):
     str
         Cleaned column name
     """
-    # Replace spaces and special characters
     col_name = str(col_name).strip()
-    
-    # Common air quality parameter mappings
     replacements = {
-        'pm2.5': 'PM2.5',
-        'pm25': 'PM2.5',
-        'pm 2.5': 'PM2.5',
-        'pm_2.5': 'PM2.5',
-        'pm10': 'PM10',
-        'pm 10': 'PM10',
-        'pm_10': 'PM10',
-        'no2': 'NO2',
-        'no_2': 'NO2',
-        'so2': 'SO2',
-        'so_2': 'SO2',
-        'co2': 'CO2',
-        'co_2': 'CO2',
-        'co': 'CO',
-        'o3': 'O3',
-        'ozone': 'O3',
-        'temp': 'Temperature',
-        'temperature': 'Temperature',
-        'humidity': 'Humidity',
-        'rh': 'Humidity',
+        'pm2.5': 'PM2.5', 'pm25': 'PM2.5', 'pm 2.5': 'PM2.5', 'pm_2.5': 'PM2.5',
+        'pm10': 'PM10', 'pm 10': 'PM10', 'pm_10': 'PM10',
+        'no2': 'NO2', 'no_2': 'NO2',
+        'so2': 'SO2', 'so_2': 'SO2',
+        'co2': 'CO2', 'co_2': 'CO2', 'co': 'CO',
+        'o3': 'O3', 'ozone': 'O3',
+        'temp': 'Temperature', 'temperature': 'Temperature',
+        'humidity': 'Humidity', 'rh': 'Humidity',
         'pressure': 'Pressure',
-        'datetime': 'Datetime',
-        'date_time': 'Datetime',
-        'time': 'Datetime',
-        'timestamp': 'Datetime',
-        'latitude': 'Latitude',
-        'lat': 'Latitude',
-        'longitude': 'Longitude',
-        'long': 'Longitude',
-        'lon': 'Longitude',
-        'device': 'Device_ID',
-        'deviceid': 'Device_ID',
-        'device_id': 'Device_ID',
-        'station': 'Device_ID',
-        'stationid': 'Device_ID',
-        'station_id': 'Device_ID',
-        'aqi': 'AQI',
-        'air_quality_index': 'AQI'
+        'datetime': 'Datetime', 'date_time': 'Datetime', 'time': 'Datetime', 'timestamp': 'Datetime',
+        'latitude': 'Latitude', 'lat': 'Latitude',
+        'longitude': 'Longitude', 'long': 'Longitude', 'lon': 'Longitude',
+        'device': 'Device_ID', 'deviceid': 'Device_ID', 'device_id': 'Device_ID',
+        'station': 'Device_ID', 'stationid': 'Device_ID', 'station_id': 'Device_ID',
+        'aqi': 'AQI', 'air_quality_index': 'AQI'
     }
-    
-    # Check for matching keys in the replacements dictionary
     lower_col = col_name.lower()
     for key, value in replacements.items():
         if key == lower_col or key in lower_col:
             return value
-    
-    # If no match found, return the original with underscores replacing spaces
     return col_name.replace(' ', '_')
 
 def standardize_datetime_column(df):
@@ -381,7 +346,6 @@ def standardize_datetime_column(df):
     pandas.DataFrame
         DataFrame with standardized DateTime column
     """
-    # Identify potential datetime columns
     datetime_cols = [col for col in df.columns if 
                     any(kw in col.lower() for kw in ['time', 'date', 'datetime', 'timestamp'])]
     
@@ -391,28 +355,18 @@ def standardize_datetime_column(df):
         datetime_col = datetime_cols[0]
         df = df.rename(columns={datetime_col: 'Datetime'})
     else:
-        # No datetime column found, return as is
-        logger.warning("No datetime column found in the data")
+        logger.warning("⚠️ No datetime column found in the data")
         return df
     
-    # Convert to datetime format
     try:
         df['Datetime'] = pd.to_datetime(df['Datetime'])
     except Exception as e:
-        logger.error(f"Error converting Datetime column: {str(e)}")
-        # Try common datetime formats
+        logger.error(f"❌ Error converting Datetime column: {str(e)}")
         date_formats = [
-            '%Y-%m-%d %H:%M:%S', 
-            '%d/%m/%Y %H:%M:%S',
-            '%m/%d/%Y %H:%M:%S',
-            '%Y/%m/%d %H:%M:%S',
-            '%d-%m-%Y %H:%M:%S',
-            '%m-%d-%Y %H:%M:%S',
-            '%Y-%m-%d',
-            '%d/%m/%Y',
-            '%m/%d/%Y'
+            '%Y-%m-%d %H:%M:%S', '%d/%m/%Y %H:%M:%S', '%m/%d/%Y %H:%M:%S',
+            '%Y/%m/%d %H:%M:%S', '%d-%m-%Y %H:%M:%S', '%m-%d-%Y %H:%M:%S',
+            '%Y-%m-%d', '%d/%m/%Y', '%m/%d/%Y'
         ]
-        
         for fmt in date_formats:
             try:
                 df['Datetime'] = pd.to_datetime(df['Datetime'], format=fmt)
@@ -437,18 +391,10 @@ def find_and_standardize_pollutant_columns(df):
         List of standardized pollutant column names
     """
     pollutant_keywords = {
-        'pm2.5': 'PM2.5',
-        'pm25': 'PM2.5',
-        'pm10': 'PM10',
-        'no2': 'NO2',
-        'so2': 'SO2',
-        'co': 'CO',
-        'o3': 'O3'
+        'pm2.5': 'PM2.5', 'pm25': 'PM2.5', 'pm10': 'PM10',
+        'no2': 'NO2', 'so2': 'SO2', 'co': 'CO', 'o3': 'O3'
     }
-    
     pollutant_columns = []
-    
-    # Find and rename pollutant columns
     for col in df.columns:
         col_lower = col.lower()
         for keyword, standard_name in pollutant_keywords.items():
@@ -456,7 +402,6 @@ def find_and_standardize_pollutant_columns(df):
                 df.rename(columns={col: standard_name}, inplace=True)
                 pollutant_columns.append(standard_name)
                 break
-    
     return pollutant_columns
 
 def handle_missing_values(df):
@@ -473,40 +418,16 @@ def handle_missing_values(df):
     pandas.DataFrame
         DataFrame with handled missing values
     """
-    # Fill missing data based on column type
     for col in df.columns:
-        if pd.api.types.is_numeric_dtype(df[col]):
-            # For numerical columns, use rolling mean with window size 3
-            # This preserves trends better than a global mean
-            if df[col].isna().sum() > 0:
-                df[col] = df[col].fillna(df[col].rolling(window=3, min_periods=1).mean())
-                
-                # If there are still NaNs (e.g., at the beginning), use forward/backward fill
-                df[col] = df[col].fillna(method='ffill').fillna(method='bfill')
-                
-                # If still NaNs, use global mean
-                df[col] = df[col].fillna(df[col].mean())
-        else:
-            # For non-numeric columns, use the most frequent value
+        if pd.api.types.is_numeric_dtype(df[col]) and df[col].isna().sum() > 0:
+            df[col] = df[col].fillna(df[col].rolling(window=3, min_periods=1).mean())
+            df[col] = df[col].fillna(method='ffill').fillna(method='bfill')
+            df[col] = df[col].fillna(df[col].mean())
+        elif df[col].isna().sum() > 0:
             df[col] = df[col].fillna(df[col].mode()[0] if not df[col].mode().empty else "Unknown")
-    
     return df
 
 def final_data_processing(df):
-    """
-    Perform final processing on the combined DataFrame
-    
-    Parameters:
-    -----------
-    df : pandas.DataFrame
-        Input DataFrame
-        
-    Returns:
-    --------
-    pandas.DataFrame
-        Final processed DataFrame
-    """
-    # Define device coordinates mapping (latitude, longitude)
     device_coordinates = {
         523005: (23.02909505, 72.49078965),
         523011: (23.0309101, 72.5088321),
@@ -521,31 +442,36 @@ def final_data_processing(df):
         524091: (23.0087287, 72.4551301),
     }
     
-    # Sort by datetime
     if 'Datetime' in df.columns:
         df = df.sort_values('Datetime')
     
     # Add Latitude and Longitude based on Device_ID
-    if 'Device_ID' in df.columns and 'Latitude' not in df.columns:
-        # Create empty Latitude and Longitude columns
+    if 'Device_ID' in df.columns:
+        # Ensure Device_ID is integer
+        df['Device_ID'] = pd.to_numeric(df['Device_ID'], errors='coerce').astype('Int64')
+        
+        # Add Latitude and Longitude
         df['Latitude'] = None
         df['Longitude'] = None
-        
-        # Fill coordinates based on device ID
         for device_id, (lat, lon) in device_coordinates.items():
             mask = df['Device_ID'] == device_id
             if mask.any():
                 df.loc[mask, 'Latitude'] = lat
                 df.loc[mask, 'Longitude'] = lon
+                logger.info(f"Assigned coordinates ({lat}, {lon}) to Device_ID {device_id}")
         
-        # Convert to numeric
         df['Latitude'] = pd.to_numeric(df['Latitude'], errors='coerce')
         df['Longitude'] = pd.to_numeric(df['Longitude'], errors='coerce')
+        
+        # Log rows with missing coordinates
+        missing_coords = df[df['Latitude'].isna() | df['Longitude'].isna()]
+        if not missing_coords.empty:
+            logger.warning(f"⚠️ {len(missing_coords)} rows have missing Latitude/Longitude values.")
+            logger.warning(f"Missing coordinates for Device_IDs: {missing_coords['Device_ID'].unique()}")
     
     # Calculate AQI if needed pollutant columns exist and AQI doesn't
     if 'AQI' not in df.columns:
         required_columns = ['PM2.5', 'PM10', 'NO2', 'O3', 'CO', 'SO2']
-        
         if all(col in df.columns for col in required_columns):
             df['AQI'] = df.apply(
                 lambda row: calculate_aqi(
@@ -555,17 +481,15 @@ def final_data_processing(df):
                 axis=1
             )
         elif 'PM2.5' in df.columns:
-            # Simplified AQI based on PM2.5 only
             df['AQI'] = df['PM2.5'] * 4.2  # Simplified conversion factor
     
-    # Convert column types if needed
+    # Convert column types
     for col in df.columns:
         if col not in ['Datetime', 'Device_ID'] and pd.api.types.is_numeric_dtype(df[col]):
             df[col] = pd.to_numeric(df[col], errors='coerce')
     
     # Add timezone info if missing
     if 'Datetime' in df.columns and df['Datetime'].dt.tz is None:
-        # Assume UTC if no timezone info
         df['Datetime'] = df['Datetime'].dt.tz_localize('UTC')
     
     return df
@@ -573,7 +497,6 @@ def final_data_processing(df):
 def calculate_aqi(pm25, pm10, no2, o3, co, so2):
     """
     Calculate a simplified Air Quality Index based on multiple pollutants.
-    This is a simplified version for demonstration.
     
     Parameters:
     -----------
@@ -585,28 +508,88 @@ def calculate_aqi(pm25, pm10, no2, o3, co, so2):
     float
         Calculated AQI value
     """
-    # AQI calculation is normally complex with breakpoints for each pollutant
-    # This is a simplified version based predominantly on PM2.5 with influence from other pollutants
-    
-    # PM2.5 AQI (simplified)
     pm25_aqi = min(500, max(0, pm25 * 2.1))
-    
-    # PM10 AQI (simplified)
     pm10_aqi = min(500, max(0, pm10 * 1.0))
-    
-    # NO2 AQI (simplified)
     no2_aqi = min(500, max(0, no2 * 1.9))
-    
-    # O3 AQI (simplified)
     o3_aqi = min(500, max(0, o3 * 1.8))
-    
-    # CO AQI (simplified)
     co_aqi = min(500, max(0, co * 50))
-    
-    # SO2 AQI (simplified)
     so2_aqi = min(500, max(0, so2 * 2.1))
-    
-    # Take the maximum AQI value (as per standard practice)
-    aqi = max(pm25_aqi, pm10_aqi, no2_aqi, o3_aqi, co_aqi, so2_aqi)
-    
-    return aqi
+    return max(pm25_aqi, pm10_aqi, no2_aqi, o3_aqi, co_aqi, so2_aqi)
+
+# New Streamlit App Code Added Below
+import pandas as pd
+import streamlit as st
+
+# Function to load latitude and longitude mappings from the mapping file
+def load_mapping(mapping_file):
+    try:
+        mapping_df = pd.read_csv(mapping_file)
+        if 'device' not in mapping_df.columns or 'latitude' not in mapping_df.columns or 'longitude' not in mapping_df.columns:
+            st.error("Mapping file must contain 'device', 'latitude', and 'longitude' columns.")
+            return None
+        return mapping_df.set_index('device')[['latitude', 'longitude']]
+    except Exception as e:
+        st.error(f"Error loading mapping file: {e}")
+        return None
+
+# Function to process the uploaded file and merge latitude and longitude
+def process_file(uploaded_file, mapping_df):
+    try:
+        # Detect file format and load data
+        if uploaded_file.name.endswith('.csv'):
+            df = pd.read_csv(uploaded_file)
+        elif uploaded_file.name.endswith(('.xls', '.xlsx')):
+            df = pd.read_excel(uploaded_file)
+        else:
+            st.error("Unsupported file format. Please upload a CSV or Excel file.")
+            return None
+        
+        # Ensure the 'device' column exists
+        if 'device' not in df.columns:
+            st.error("Uploaded file must contain a 'device' column.")
+            return None
+        
+        # Merge data with mapping information
+        df = df.merge(mapping_df, on='device', how='left')
+
+        # Handling missing coordinates
+        missing_count = df['latitude'].isna().sum()
+        if missing_count > 0:
+            st.warning(f"{missing_count} devices could not be assigned latitude/longitude.")
+        
+        return df
+
+    except Exception as e:
+        st.error(f"Error processing the file: {e}")
+        return None
+
+# Streamlit UI
+st.title("Device Location Mapper")
+
+# Upload mapping file
+st.sidebar.header("Upload Mapping File")
+mapping_file = st.sidebar.file_uploader("Upload CSV mapping file", type=['csv'])
+
+if mapping_file:
+    mapping_df = load_mapping(mapping_file)
+    if mapping_df is not None:
+        st.sidebar.success("Mapping file loaded successfully.")
+
+        # Upload data file
+        st.sidebar.header("Upload Data File")
+        uploaded_file = st.sidebar.file_uploader("Upload CSV or Excel file", type=['csv', 'xls', 'xlsx'])
+
+        if uploaded_file:
+            processed_df = process_file(uploaded_file, mapping_df)
+
+            if processed_df is not None:
+                st.success("File processed successfully!")
+                st.write(processed_df)
+
+                # Provide download link for processed file
+                st.download_button(
+                    label="Download Processed File",
+                    data=processed_df.to_csv(index=False).encode('utf-8'),
+                    file_name="processed_data.csv",
+                    mime="text/csv"
+                )

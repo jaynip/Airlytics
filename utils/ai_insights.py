@@ -910,9 +910,8 @@ def assess_health_impact(df):
             
             # Use Gemini API to generate more detailed health insights
             try:
-                # Initialize the Gemini API with the provided key
-                import os
-                api_key = os.environ.get("GOOGLE_API_KEY")
+                # Hardcode the API key
+                api_key = "AIzaSyAeRYT_M-gbsPopT42wygWBUDx9pCFsdWI"
                 if api_key:
                     genai.configure(api_key=api_key)
                     
@@ -960,7 +959,7 @@ def assess_health_impact(df):
                     else:
                         logger.warning("Gemini API returned an empty or invalid response")
                 else:
-                    logger.warning("No Google API key available for Gemini integration")
+                    logger.warning("No Google API key provided")
             except Exception as e:
                 logger.error(f"Error generating Gemini health insights: {str(e)}")
             

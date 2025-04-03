@@ -5,6 +5,14 @@ import os
 import logging
 from datetime import datetime, timedelta
 
+# Page configuration
+st.set_page_config(
+    page_title="Oizom's Smart Airlytics",
+    page_icon="🌬️",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
 # Import utility modules
 from utils.data_processor import upload_and_process_data, load_sample_data
 from utils.ai_insights import get_ai_recommendations
@@ -46,14 +54,6 @@ DARK_GREEN = "#3d9542"
 ALERT_RED = "#d9534f"
 WARNING_YELLOW = "#f0ad4e"
 INFO_BLUE = "#5bc0de"
-
-# Page configuration
-st.set_page_config(
-    page_title="Oizom's Smart Airlytics",
-    page_icon="🌬️",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
 
 # Add custom styles inspired by oizom.com brand
 def local_css():
